@@ -1,0 +1,31 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/css/style.css?v=1"">
+<div class="seg"><a href="services.html" class="on">Services</a><a href="missions.html">Do both</a></div>
+<h1 id="pname"></h1><p id="pinfo"></p><p id="prating"></p><p id="pbio"></p>
+<a id="call" class="big green" href="#">Call</a>
+<a id="msgbtn" class="big" href="#">Message</a>
+<h1>Services and trainings</h1><div id="offers"></div>
+<h1>Portfolio</h1><div id="gallery"></div>
+<h1>Reviews</h1><div id="reviews"></div>
+<button id="report" class="orange">Report this profile</button></main>
+<script src="js/app.js"></script>
+<script>
+const id = new URLSearchParams(location.search).get("id");
+Promise.all([api("/api/users/" + id), api("/api/portfolio/" + id)]).then(([u, items]) => {
+  pname.textContent = u.full_name;
+  pinfo.textContent = t(u.city) + (u.skills ? " · " + u.skills : "");
+  prating.textContent = u.rating.n ? `★ ${u.rating.avg}/5 (${u.rating.n})` : "No reviews yet";
+  pbio.textContent = u.bio || "";
+  call.textContent = "Call " + u.phone;
+  call.href = "tel:" + u.phone.replace(/\s/g, "");
+  msgbtn.href = "messages.html?to=" + u.id;
+  offers.innerHTML = u.services.map((s) => `<div class="card"><b>${esc(s.title)}</b> ${s.kind === "training" ? `<span class="badge">Training</span>` : ""}<br>${esc(t(s.category))}<br>From ${esc(s.price)} FCFA<p>${esc(s.description)}</p></div>`).join("") || "<p>Nothing here yet.</p>";
+  gallery.innerHTML = mediaHtml(items);
+  reviews.innerHTML = u.reviews.map((r) => `<div class="card">★ ${esc(r.rating)}/5 · ${esc(r.reviewer)}<p>${esc(r.comment)}</p></div>`).join("") || "<p>No reviews yet</p>";
+});
+report.onclick = async () => {
+  const reason = prompt(t("Why are you reporting this profile?"));
+  if (!reason) return;
+  try { await api("/api/report", "POST", { user_id: Number(id), reason }); alert(t("Thank you. We will review this profile.")); }
+  catch (err) { alert(t(err.message)); }
+};
+</script></body></html>

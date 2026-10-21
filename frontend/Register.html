@@ -1,0 +1,11 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="css/style.css"><title>Create an account - TaskLink</title></head><body><main><h1>Create an account</h1>
+<p>Join TaskLink and turn your skills into opportunities.</p>
+<form id="form" data-url="/api/register" data-next="home.html">
+<label>Full name<input name="full_name" placeholder="Ex: Ange Raïssa" required></label>
+<label>Phone number<input type="tel" name="phone" placeholder="+237 6XX XXX XXX" required></label>
+<label>Email<input type="email" name="email" required></label>
+<label>City<select name="city"><option value="Yaoundé">Yaoundé</option><option value="Douala">Douala</option><option value="Other">Other</option></select></label>
+<label>Password<input type="password" name="password" minlength="6" required></label>
+<p class="msg" id="msg"></p><button>Create my account</button></form>
+<p>Already have an account? <a href="login.html">Log in</a></p></main>
+<script src="js/app.js"></script><script src="js/auth.js"></script></body></html>

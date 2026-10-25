@@ -20,7 +20,7 @@ def list_missions():
         """SELECT m.*, u.full_name AS author, u.profile_photo AS author_photo,
            EXISTS(SELECT 1 FROM applications a WHERE a.mission_id=m.id AND a.user_id=?) AS applied
            FROM missions m JOIN users u ON u.id = m.user_id
-           WHERE m.status='open' AND m.user_id != ?
+           WHERE m.status='open' AND m.user_id != ? AND u.blocked = 0
            ORDER BY m.id DESC""", (session["uid"], session["uid"]))
     for r in rows:
         r["applied"] = bool(r["applied"])
@@ -36,7 +36,7 @@ def my_missions():
     missions = query("SELECT * FROM missions WHERE user_id=? ORDER BY id DESC", (session["uid"],))
     for m in missions:
         m["applicants"] = query(
-            "SELECT u.id, u.full_name FROM applications a JOIN users u ON u.id=a.user_id WHERE a.mission_id=?",
+            "SELECT u.id, u.full_name FROM applications a JOIN users u ON u.id=a.user_id WHERE a.mission_id=? AND u.blocked=0",
             (m["id"],))
         m["reviewed"] = bool(query("SELECT id FROM reviews WHERE mission_id=?", (m["id"],), one=True))
         worker = query("SELECT full_name FROM users WHERE id=?", (m["worker_id"],), one=True) \

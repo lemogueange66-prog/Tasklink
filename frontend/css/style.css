@@ -341,3 +341,77 @@ fieldset.rate input:focus-visible + label { outline: 3px solid #86a0ff; border-r
 .checkline { display: flex; align-items: center; gap: 10px; font-weight: 600; }
 .checkline input { width: auto; margin: 0; }
 @media (max-width: 560px) { .chat { height: calc(100svh - 52px - 76px - 16px); } .msg-b { max-width: 90%; } }
+
+/* ==========================================================================
+   Admin, notifications, chat attachments, path card (added)
+   ========================================================================== */
+/* bell (next to the EN/FR button) and pop-up */
+#bell { position: absolute; top: 10px; right: 72px; z-index: 30; display: inline-flex; align-items: center; min-height: 34px; padding: 4px 11px;
+  border-radius: 999px; background: #fff; border: 1px solid var(--line); font-size: 1rem; text-decoration: none; box-shadow: 0 2px 8px #10213f14; }
+#bell:hover { text-decoration: none; background: var(--pale); }
+#bell .nav-badge { margin-left: 4px; vertical-align: middle; }
+.toast { position: fixed; z-index: 60; top: 56px; left: 50%; transform: translateX(-50%); width: min(92vw, 460px); padding: 12px 16px; border-radius: 14px;
+  background: var(--navy); color: #fff; font-weight: 600; box-shadow: 0 12px 34px #10213f55; animation: toast-in .25s ease-out; }
+.toast:hover { text-decoration: none; color: #fff; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* notifications page */
+.note { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; color: inherit; margin: 10px 0; }
+.note:hover { text-decoration: none; border-color: #a9bbff; }
+.note .ico { font-size: 1.4rem; line-height: 1.2; }
+.note b { display: block; color: var(--navy); }
+.note p { margin: 4px 0 0; color: #56647a; font-size: .92rem; overflow-wrap: anywhere; }
+.note time { display: block; margin-top: 4px; font-size: .74rem; color: var(--muted); }
+.note.unread { border-left: 5px solid var(--blue); background: #f7f9ff; }
+.note.ok .ico { color: var(--green); } .note.no .ico { color: var(--orange); }
+
+/* admin */
+.counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+.counters div { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 10px 6px; text-align: center; }
+.counters b { display: block; font-size: 1.35rem; color: var(--navy); }
+.counters span { font-size: .72rem; color: var(--muted); font-weight: 700; }
+.counters .warn b { color: var(--orange); } .counters .bad b { color: var(--red); }
+.report { padding: 16px; margin: 12px 0; }
+.report .pair { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report .pair .arrow { color: var(--muted); font-weight: 800; }
+.report .who { min-width: 0; }
+.report .who small { display: block; color: var(--muted); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.report .reason { margin: 12px 0 8px; padding: 10px 12px; background: #f4f6fb; border-radius: 12px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.report .facts { color: var(--muted); font-size: .84rem; display: flex; gap: 6px 14px; flex-wrap: wrap; margin-bottom: 8px; }
+.report textarea { min-height: 64px; margin: 6px 0 0; }
+.report .row-actions button { flex: 1; }
+.report .verdict { margin-top: 8px; font-size: .9rem; }
+.badge.no { background: #fdecee; color: #a62b3b; }
+.badge.wait { background: #fff0df; color: #b4610f; }
+.admin-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
+.admin-tabs button { width: auto; margin: 0; min-height: 38px; padding: 8px 14px; background: #edf1fb; color: var(--navy); border-radius: 999px; font-size: .85rem; }
+.admin-tabs button.on { background: var(--navy); color: #fff; }
+button.danger { background: var(--red); } button.danger:hover { background: #a82f40; }
+@media (max-width: 560px) { .counters { grid-template-columns: repeat(2, 1fr); } #bell { right: 68px; } }
+
+/* chat attachments */
+.composer .attach { width: 46px; padding: 0; flex: none; background: #edf1fb; color: var(--navy); font-size: 1.25rem; }
+.composer .attach:hover { background: #e1e8f8; box-shadow: none; }
+.composer .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.file-chip { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 6px; background: #f4f6fb; border: 1px solid var(--line); border-radius: 12px; }
+.file-chip img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; flex: none; }
+.file-chip .pdf-ico { width: 44px; height: 44px; border-radius: 8px; flex: none; display: grid; place-items: center; background: #fdecee; color: #c33c4d; font-weight: 800; font-size: .72rem; }
+.file-chip .nm { flex: 1; min-width: 0; font-size: .85rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-chip .nm small { display: block; color: var(--muted); font-weight: 500; }
+.file-chip button { margin: 0; height: 34px; width: 34px; padding: 0; border-radius: 50%; background: #e1e8f8; color: var(--navy); flex: none; }
+.msg-b.has-file { padding: 6px; }
+.msg-b.has-file > .txt { padding: 4px 7px 0; display: block; }
+.msg-b.has-file time { padding: 0 7px 2px; }
+.msg-b .pic { display: block; max-width: 100%; border: 0; padding: 0; margin: 0; background: none; border-radius: 12px; overflow: hidden; cursor: zoom-in; min-height: 0; width: auto; }
+.msg-b .pic img { display: block; max-width: min(260px, 100%); max-height: 300px; border-radius: 12px; }
+.msg-b .doc { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: #f4f6fb; color: var(--text); min-width: 210px; }
+.msg-b.mine .doc { background: #ffffff26; color: #fff; }
+.msg-b .doc .pdf-ico { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: #fdecee; color: #c33c4d; font-weight: 800; font-size: .7rem; flex: none; }
+.msg-b .doc .nm { flex: 1; min-width: 0; font-weight: 700; font-size: .88rem; overflow-wrap: anywhere; white-space: normal; }
+.msg-b .doc .nm small { display: block; font-weight: 500; opacity: .7; }
+.msg-b .doc-links { display: flex; gap: 12px; padding: 4px 8px 0; font-size: .82rem; font-weight: 700; }
+.msg-b.mine .doc-links a { color: #fff; }
+
+/* path card (set-your-place page) */
+.path-card h3 { margin: 0 0 8px; }
+.path-card .row-actions a.big { text-decoration: none; }

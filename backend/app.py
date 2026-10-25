@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify
 from werkzeug.exceptions import HTTPException
 
 from models import init_db
-from routes import auth, users, services, missions, messages, portfolio, chat
+from routes import auth, users, services, missions, messages, portfolio, chat, admin, notifications
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND = os.path.join(BASE_DIR, "..", "frontend")
@@ -47,7 +47,7 @@ app.config.update(
 )
 app.permanent_session_lifetime = timedelta(days=7)
 
-for module in (auth, users, services, missions, messages, portfolio, chat):
+for module in (auth, users, services, missions, messages, portfolio, chat, admin, notifications):
     app.register_blueprint(module.bp)
 
 
@@ -71,7 +71,7 @@ def wants_json():
 def http_error(e):
     if not wants_json():
         return e
-    messages_ = {413: "File too large (max 30 MB)", 404: "Not found", 405: "Method not allowed",
+    messages_ = {413: "File too large (max 30 MB)", 403: "Not allowed", 404: "Not found", 405: "Method not allowed",
                  415: "Please send JSON data"}
     return jsonify(error=messages_.get(e.code, e.description or "Something went wrong")), e.code
 

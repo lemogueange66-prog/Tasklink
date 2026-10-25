@@ -15,7 +15,8 @@ async function api(url, method = "GET", body) {
     throw new Error("Cannot reach the server. Is TaskLink running?");
   }
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && document.body.hasAttribute("data-nav")) location.href = "login.html";
+  if (res.status === 401 && data.blocked) location.href = "login.html?blocked=1";
+  else if (res.status === 401 && document.body.hasAttribute("data-nav")) location.href = "login.html";
   if (!res.ok) throw new Error(data.error || "Something went wrong");
   return data;
 }
@@ -26,7 +27,7 @@ async function postForm(url, formBody) {
   try { res = await fetch(url, { method: "POST", body: formBody }); }
   catch (e) { throw new Error("Cannot reach the server. Is TaskLink running?"); }
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) location.href = "login.html";
+  if (res.status === 401) location.href = data.blocked ? "login.html?blocked=1" : "login.html";
   if (!res.ok) throw new Error(data.error || "Upload failed");
   return data;
 }
@@ -77,12 +78,35 @@ function fmtDate(s) {
   return isNaN(d) ? String(s || "") : d.toLocaleString(lang === "fr" ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
 }
 
+/* ---- Notifications: the sentence is built here so it follows the FR / EN switch ---- */
+function noteText(n) {
+  const fr = lang === "fr", name = n.ref_name || "";
+  return ({
+    report_accepted: fr ? `Signalement accepté : le compte de ${name} a été bloqué.` : `Report accepted: ${name}'s account has been blocked.`,
+    report_rejected: fr ? `Signalement examiné : aucune action contre ${name}.` : `Report reviewed: no action was taken against ${name}.`,
+    report_new: fr ? `Nouveau signalement contre ${name}.` : `New report against ${name}.`,
+  })[n.kind] || String(n.kind || "");
+}
+function noteExtra(n) {
+  if (!n.note) return "";
+  const fr = lang === "fr";
+  const label = n.kind === "report_new" ? (fr ? "Motif : " : "Reason: ") : (fr ? "Message de l'administrateur : " : "Admin message: ");
+  return label + n.note;
+}
+function toast(text, href) {
+  const el = document.createElement("a");
+  el.className = "toast"; el.href = href || "notifications.html"; el.textContent = "🔔 " + text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 9000);
+}
+const fileSize = (b) => b < 1024 * 1024 ? Math.max(1, Math.round(b / 1024)) + " KB" : (b / 1048576).toFixed(1) + " MB";
+
 /* ---- Page frame: bottom menu, top space for the language button ---- */
 const PAGE = location.pathname.split("/").pop().replace(".html", "") || "index";
 document.body.classList.add(document.querySelector(".welcome") ? "is-welcome" : "has-top");
 
 if (document.body.hasAttribute("data-nav")) {
-  const tab = { home: "home", services: "services", missions: "services", provider: "services", message: "message", route: "message", place: "profile", profile: "profile" }[PAGE];
+  const tab = { home: "home", services: "services", missions: "services", provider: "services", message: "message", route: "message", place: "profile", profile: "profile", admin: "admin" }[PAGE];
   const link = (href, key, label) => `<a href="${href}"${tab === key ? ' class="active" aria-current="page"' : ""}>${label}</a>`;
   document.body.insertAdjacentHTML("beforeend", `<nav aria-label="Main">
     ${link("home.html", "home", "Home")}${link("services.html", "services", "Explore")}
@@ -103,6 +127,33 @@ if (document.body.hasAttribute("data-nav")) {
   window.refreshUnread = refreshUnread;
   refreshUnread();
   setInterval(() => { if (!document.hidden) refreshUnread(); }, 15000);
+
+  /* Bell: unread notifications (e.g. the administrator's decision on your report), pop-up for new ones.
+     Administrators also get an "Admin" tab. */
+  document.body.insertAdjacentHTML("beforeend", `<a id="bell" href="notifications.html" aria-label="Notifications">🔔</a>`);
+  const bell = document.getElementById("bell");
+  let seenId = null;
+  const refreshNotes = async () => {
+    try {
+      const r = await fetch("/api/notifications/unread").then((x) => x.json());
+      if (r.count === undefined) return;
+      let b = bell.querySelector(".nav-badge");
+      if (r.count > 0) {
+        if (!b) { b = document.createElement("span"); b.className = "nav-badge"; bell.appendChild(b); }
+        b.textContent = r.count > 9 ? "9+" : r.count;
+      } else if (b) b.remove();
+      if (r.is_admin && !document.querySelector('body > nav a[href="admin.html"]')) {
+        document.querySelector("body > nav").insertAdjacentHTML("beforeend", link("admin.html", "admin", "Admin"));
+      }
+      if (r.latest) {
+        if (seenId !== null && r.latest.id > seenId) toast(noteText(r.latest), r.latest.link);
+        seenId = Math.max(seenId || 0, r.latest.id);
+      } else if (seenId === null) seenId = 0;
+    } catch (e) {}
+  };
+  window.refreshNotes = refreshNotes;
+  refreshNotes();
+  setInterval(() => { if (!document.hidden) refreshNotes(); }, 8000);
 }
 
 /* The app needs the Flask server: warn if the page was opened as a plain file. */
@@ -242,6 +293,36 @@ const FR = {
   "Loading the 3D map…": "Chargement de la carte 3D…", "Could not load the map. Check your internet connection.": "Impossible de charger la carte. Vérifie ta connexion internet.",
   "No route found between these two points.": "Aucun itinéraire trouvé entre ces deux points.", "Could not get your position": "Impossible d'obtenir ta position",
   "No place found": "Aucun lieu trouvé", "Meeting point": "Point de rencontre", "Total": "Total",
+  /* admin, reports, notifications */
+  "Notifications": "Notifications", "No notifications yet.": "Aucune notification pour le moment.", "Mark all as read": "Tout marquer comme lu",
+  "Admin": "Admin", "Admin panel": "Espace administrateur", "Reports": "Signalements", "Pending": "En attente", "Accepted": "Acceptés",
+  "Rejected": "Refusés", "Blocked users": "Comptes bloqués", "Accept and block": "Accepter et bloquer", "Reject": "Refuser",
+  "Admin message (optional)": "Message de l'administrateur (facultatif)", "Visible by the person who reported.": "Visible par la personne qui a signalé.",
+  "Reported by": "Signalé par", "Reported profile": "Profil signalé", "Reason": "Motif", "View profile": "Voir le profil", "Unblock": "Débloquer",
+  "No reports here.": "Aucun signalement ici.", "No blocked users.": "Aucun compte bloqué.", "Blocked": "Bloqué", "Phone": "Téléphone", "E-mail": "E-mail",
+  "reports on this profile": "signalements sur ce profil", "report on this profile": "signalement sur ce profil", "Decision": "Décision", "Reviewed": "Examiné",
+  "Block this account? The person will no longer be able to log in, and the reporter will be notified.":
+    "Bloquer ce compte ? La personne ne pourra plus se connecter et le signalement sera notifié à l'auteur.",
+  "Reject this report? The reporter will be notified.": "Refuser ce signalement ? L'auteur sera notifié.",
+  "Unblock this account?": "Débloquer ce compte ?",
+  "Decision saved. The reporter has been notified.": "Décision enregistrée. L'auteur du signalement a été notifié.",
+  "Account unblocked": "Compte débloqué",
+  "Thank you. An administrator will review this report and you will get a notification with the decision.":
+    "Merci. Un administrateur va examiner ce signalement et tu recevras une notification avec sa décision.",
+  "This account has been blocked by an administrator": "Ce compte a été bloqué par un administrateur",
+  "You already reported this profile. An administrator is reviewing it.": "Tu as déjà signalé ce profil. Un administrateur l'examine.",
+  "Choose accept or reject": "Choisis accepter ou refuser", "This report has already been reviewed": "Ce signalement a déjà été examiné",
+  "An administrator account cannot be blocked": "Un compte administrateur ne peut pas être bloqué",
+  /* chat attachments */
+  "Attach a picture or a PDF": "Joindre une image ou un PDF", "Photo": "Photo", "PDF": "PDF", "Open": "Ouvrir", "Download": "Télécharger",
+  "Remove": "Retirer", "Add a text (optional)": "Ajouter un texte (facultatif)",
+  "Send a JPG, PNG, WEBP picture or a PDF": "Envoie une image JPG, PNG, WEBP ou un PDF",
+  "Pictures must be smaller than 10 MB": "Les images doivent faire moins de 10 Mo", "PDF files must be smaller than 20 MB": "Les PDF doivent faire moins de 20 Mo",
+  "This file type is not allowed": "Ce type de fichier n'est pas autorisé",
+  /* path to a place */
+  "Path to this place": "Chemin pour y aller", "Show the way from my position": "Afficher le chemin depuis ma position",
+  "Open in Google Maps": "Ouvrir dans Google Maps", "Getting your position…": "Recherche de ta position…", "Your position": "Ta position",
+  "Save the place first, or tap the map to choose it.": "Choisis d'abord un lieu sur la carte.", "Place": "Lieu",
   /* page titles */
   "Explore services": "Explorer les services", "Meet": "Rencontre", "My place": "Mon lieu", "Missions": "Missions", "Provider profile": "Profil du prestataire",
 };

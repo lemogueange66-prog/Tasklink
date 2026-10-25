@@ -27,6 +27,22 @@
   </div>
   <p class="meta">Tap the map to choose a meeting point.</p>
 
+  <!-- The way to the place you set: from where you are now (GPS) to the pin -->
+  <section class="card path-card" id="pathCard" hidden>
+    <h3>Path to this place</h3>
+    <div class="modes" id="modes" role="group" aria-label="Travel mode">
+      <button type="button" data-mode="foot" class="on"><span aria-hidden="true">🚶</span> Walk</button>
+      <button type="button" data-mode="bike"><span aria-hidden="true">🚲</span> Bike</button>
+      <button type="button" data-mode="car"><span aria-hidden="true">🚗</span> Car</button>
+    </div>
+    <div class="row-actions">
+      <button type="button" id="pathBtn">Show the way from my position</button>
+      <a id="gmaps" class="big ghost" href="#" target="_blank" rel="noopener" style="margin:0">Open in Google Maps</a>
+    </div>
+    <p class="msg" id="pathMsg" role="alert"></p>
+    <div id="legs"></div>
+  </section>
+
   <form id="form" class="card">
     <label>Place name (optional)<input name="label" maxlength="120" placeholder="Carrefour Bastos, Yaoundé"></label>
     <label class="checkline" style="margin-top:16px"><input type="checkbox" name="share" checked> Share this place with people I chat with</label>

@@ -56,12 +56,21 @@ FILE_TYPES = {
 }
 
 
+# Chat attachments: pictures and PDF documents only
+CHAT_TYPES = {
+    "jpg": ("image", "jpg"), "jpeg": ("image", "jpg"), "png": ("image", "png"),
+    "webp": ("image", "webp"), "pdf": ("pdf", "pdf"),
+}
+
+
 def sniff(head):
     """Identify a file from its first bytes -> (kind, family) or (None, None)."""
     if head.startswith(b"\xff\xd8\xff"):
         return "image", "jpg"
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
         return "image", "png"
+    if head.startswith(b"%PDF-"):
+        return "pdf", "pdf"
     if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
         return "image", "webp"
     if head[4:8] in (b"ftyp", b"moov", b"mdat", b"wide", b"free", b"skip"):
@@ -71,8 +80,10 @@ def sniff(head):
     return None, None
 
 
-def inspect_upload(f, allowed_ext):
-    """Validate an uploaded file. Returns (ext, kind, size, error_message)."""
+def inspect_upload(f, allowed_ext, types=None):
+    """Validate an uploaded file. Returns (ext, kind, size, error_message).
+    `types` maps extension -> (kind, family); the default is FILE_TYPES (portfolio)."""
+    types = types or FILE_TYPES
     name = (f.filename or "") if f else ""
     ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
     if not f or ext not in allowed_ext:
@@ -84,6 +95,6 @@ def inspect_upload(f, allowed_ext):
     f.stream.seek(0)
     if size == 0:
         return ext, None, 0, "EMPTY"
-    if sniff(head) != FILE_TYPES[ext]:
+    if sniff(head) != types[ext]:
         return ext, None, size, "BAD_TYPE"
-    return ext, FILE_TYPES[ext][0], size, None
+    return ext, types[ext][0], size, None

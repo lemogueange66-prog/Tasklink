@@ -16,10 +16,11 @@ def list_services():
     sql = """SELECT s.*, u.full_name AS provider, u.profile_photo AS photo,
                     u.skills AS skills, u.bio AS bio,
                     (SELECT ROUND(AVG(rating), 1) FROM reviews r WHERE r.worker_id = s.user_id) AS rating
-             FROM services s JOIN users u ON u.id = s.user_id"""
+             FROM services s JOIN users u ON u.id = s.user_id
+             WHERE u.blocked = 0"""             # blocked accounts are hidden
     args = ()
     if category:
-        sql += " WHERE s.category = ?"          # exact match (no LIKE wildcards)
+        sql += " AND s.category = ?"            # exact match (no LIKE wildcards)
         args = (category,)
     rows = query(sql + " ORDER BY s.id DESC", args)
     for r in rows:

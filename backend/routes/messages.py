@@ -34,11 +34,11 @@ def send():
         return fail("Text is too long")
     if d.get("to_id"):
         try:
-            to = query("SELECT id FROM users WHERE id=?", (int(d["to_id"]),), one=True)
+            to = query("SELECT id FROM users WHERE id=? AND blocked=0", (int(d["to_id"]),), one=True)
         except (TypeError, ValueError):
             to = None
     else:
-        to = query("SELECT id FROM users WHERE email=?", (text(d, "to_email").lower(),), one=True)
+        to = query("SELECT id FROM users WHERE email=? AND blocked=0", (text(d, "to_email").lower(),), one=True)
     if not to:
         return fail("No user found", 404)
     if to["id"] == session["uid"]:

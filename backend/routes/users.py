@@ -2,7 +2,8 @@ import os, uuid
 from flask import Blueprint, session, jsonify
 from database import query
 from helpers import body, fail, text, whole, inspect_upload, CITIES
-from routes.auth import login_required
+from routes.auth import login_required, is_admin
+from notify import notify_admins
 from flask import request
 
 bp = Blueprint("users", __name__)
@@ -15,7 +16,7 @@ MAX_PHOTO = 5 * 1024 * 1024
 @login_required
 def get_me():
     me = query("""SELECT id, full_name, phone, email, city, bio, skills, profile_photo,
-                         lat, lng, location_label, share_location FROM users WHERE id=?""",
+                         lat, lng, location_label, share_location, is_admin FROM users WHERE id=?""",
                (session["uid"],), one=True)
     if not me:                                  # account no longer exists
         session.clear()
@@ -66,10 +67,11 @@ def upload_profile_photo():
 @bp.get("/api/users/<int:user_id>")
 @login_required
 def get_user(user_id):
-    user = query("SELECT id, full_name, phone, city, bio, skills, profile_photo FROM users WHERE id=?",
+    user = query("SELECT id, full_name, phone, city, bio, skills, profile_photo, blocked FROM users WHERE id=?",
                  (user_id,), one=True)
-    if not user:
+    if not user or (user["blocked"] and not is_admin()):      # blocked accounts disappear (admins can still see them)
         return fail("User not found", 404)
+    user["blocked"] = bool(user["blocked"])
     user["rating"] = query("SELECT ROUND(AVG(rating), 1) AS avg, COUNT(*) AS n FROM reviews WHERE worker_id=?",
                            (user_id,), one=True)
     user["reviews"] = query(
@@ -101,10 +103,15 @@ def report():
         return fail("Choose a profile and provide a reason")
     if not reason:
         return fail("Choose a profile and provide a reason")
-    if target == session["uid"] or not query("SELECT id FROM users WHERE id=?", (target,), one=True):
+    other = query("SELECT id, full_name, is_admin, blocked FROM users WHERE id=?", (target,), one=True)
+    if target == session["uid"] or not other or other["is_admin"] or other["blocked"]:
         return fail("Not allowed")
+    if query("SELECT 1 FROM reports WHERE reporter_id=? AND reported_id=? AND COALESCE(status,'pending')='pending'",
+             (session["uid"], target), one=True):
+        return fail("You already reported this profile. An administrator is reviewing it.")
     query("INSERT INTO reports (reporter_id, reported_id, reason) VALUES (?,?,?)",
           (session["uid"], target, reason[:500]), commit=True)
+    notify_admins("report_new", other["full_name"], reason[:200])
     return jsonify(ok=True)
 
 
@@ -179,9 +186,9 @@ def set_location():
 def get_location(user_id):
     """A person's meeting place, for the route map. Only if they chose to share it AND you have chatted."""
     me = session["uid"]
-    u = query("SELECT id, full_name, profile_photo, lat, lng, location_label, share_location, city FROM users WHERE id=?",
+    u = query("SELECT id, full_name, profile_photo, lat, lng, location_label, share_location, city, blocked FROM users WHERE id=?",
               (user_id,), one=True)
-    if not u:
+    if not u or u["blocked"]:
         return fail("User not found", 404)
     if user_id != me:
         if not u["share_location"] or u["lat"] is None:

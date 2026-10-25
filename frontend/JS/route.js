@@ -4,7 +4,9 @@ const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const withId = params.get("with");
 
-const state = { me: null, them: null, meet: null, meetLabel: "", mode: "foot", tilted: true, token: 0 };
+const state = { me: null, them: null, themName: "", meet: null, meetLabel: "", mode: "foot", tilted: true, token: 0 };
+const themName = () => (state.them && state.them.full_name) || state.themName || "";
+const target = () => state.meet || state.them;                  // the place we are heading to
 let map, pins = {}, legs = [], flying = false, raf = 0;
 
 const problem = (html) => { $("problem").hidden = false; $("problem").innerHTML = html; };
@@ -19,23 +21,27 @@ async function init() {
     $("sub").textContent = t("Meet on the map");
     $("who").style.display = ""; renderAvatar($("who"), user);
   }
-  if (them instanceof Error) {
+  const m = (params.get("meet") || "").split(",").map(Number);
+  if (m.length === 2 && m.every(Number.isFinite) && Math.abs(m[0]) <= 90 && Math.abs(m[1]) <= 180) state.meet = { lat: m[0], lng: m[1] };
+
+  /* No shared place from them is fine when a meeting point came with the link: we still show the way to it. */
+  if (them instanceof Error && !state.meet) {
     return problem(`<p style="margin:0"><b>${esc(t(them.message))}</b></p>
       <div class="row-actions"><a class="big" href="message.html?to=${esc(withId)}">${esc(t("Message"))}</a></div>`);
   }
   state.me = me.lat != null ? { lat: me.lat, lng: me.lng, id: me.id, name: me.full_name, saved: true } : { id: me.id, name: me.full_name };
-  state.them = them;
-
-  const m = (params.get("meet") || "").split(",").map(Number);
-  if (m.length === 2 && m.every(Number.isFinite) && Math.abs(m[0]) <= 90 && Math.abs(m[1]) <= 180) state.meet = { lat: m[0], lng: m[1] };
+  state.them = them instanceof Error ? null : them;
+  state.themName = user ? user.full_name : "";
 
   $("app").hidden = false;
   try {
-    map = await TLMAP.createMap($("map"), { center: [them.lng, them.lat], zoom: 14.5 });
+    const c = target();
+    map = await TLMAP.createMap($("map"), { center: [c.lng, c.lat], zoom: 14.5 });
   } catch (e) { $("mapStatus").textContent = t(e.message); return; }
   $("mapStatus").hidden = true;
   map.on("click", (e) => setMeet(e.lngLat.lat, e.lngLat.lng));
   await draw();
+  if (state.me.lat == null) useGps(true);        // no saved place: draw the way from where you are right now
 }
 
 /* ---------- pins ---------- */
@@ -48,7 +54,7 @@ function updatePins() {
     } else pins[key].setLngLat([p.lng, p.lat]);
   };
   put("me", "me", esc(initials(state.me.name)), state.me.lat != null ? state.me : null, false);
-  put("them", "them", esc(initials(state.them.full_name)), state.them, false);
+  put("them", "them", esc(initials(themName())), state.them, false);
   put("meet", "meet", "⚑", state.meet, true);
 }
 
@@ -62,6 +68,7 @@ function setMeet(lat, lng) {
 $("clearMeet").onclick = () => { state.meet = null; state.meetLabel = ""; draw(); };
 
 $("half").onclick = () => {
+  if (!state.them) return;
   if (state.me.lat == null) return showError($("msg"), new Error("Could not get your position"));
   const line = legs[0] && !state.meet ? legs[0].coords : null;      // halfway along the real path when we have it
   if (line) {
@@ -88,21 +95,24 @@ async function draw() {
   stopFly();
   const token = ++state.token, { me, them, meet, mode } = state;
   updatePins();
-  $("clearMeet").hidden = $("share").hidden = !meet;
-  $("half").hidden = !!meet;
+  $("share").hidden = !meet;
+  $("clearMeet").hidden = !meet || !them;          // without a shared place of theirs, the meeting point is all there is
+  $("half").hidden = !!meet || !them;
+  updateGmaps();
   $("hint").textContent = t("Tap the map to choose a meeting point.");
 
   const myPoint = me.lat != null ? me : null;
   const jobs = !myPoint ? []
     : meet ? [{ from: myPoint, to: meet, title: `${t("You")} → ${t("Meeting point")}`, color: "#315efb", cls: "" },
-              { from: them, to: meet, title: `${them.full_name} → ${t("Meeting point")}`, color: "#e88a35", cls: "them" }]
-           : [{ from: myPoint, to: them, title: `${t("You")} → ${them.full_name}`, color: "#315efb", cls: "" }];
+              ...(them ? [{ from: them, to: meet, title: `${themName()} → ${t("Meeting point")}`, color: "#e88a35", cls: "them" }] : [])]
+           : [{ from: myPoint, to: them, title: `${t("You")} → ${themName()}`, color: "#315efb", cls: "" }];
 
   if (!myPoint) {
     legs = []; TLMAP.clearLine(map, "route-a"); TLMAP.clearLine(map, "route-b");
     $("legs").innerHTML = `<div class="card"><b>${esc(t("Set your place so people can plan a route to you."))}</b>
       <div class="row-actions"><a class="big" href="place.html">${esc(t("My meeting place"))}</a></div></div>`;
-    map.flyTo({ center: [them.lng, them.lat], zoom: 15.5, pitch: state.tilted ? 60 : 0 });
+    const c = target();
+    map.flyTo({ center: [c.lng, c.lat], zoom: 15.5, pitch: state.tilted ? 60 : 0 });
     return;
   }
 
@@ -151,17 +161,29 @@ $("tilt").onclick = () => {
   if (map) map.easeTo({ pitch: state.tilted ? 60 : 0, bearing: state.tilted ? -17 : 0, duration: 700 });
 };
 
-$("gps").onclick = () => {
-  if (!navigator.geolocation) return showError($("msg"), new Error("Could not get your position"));
+function useGps(silent) {
+  const fail = () => { if (!silent) showError($("msg"), new Error("Could not get your position")); };
+  if (!navigator.geolocation) return fail();
   navigator.geolocation.getCurrentPosition(
     (p) => {                                              // used for this visit only, never sent to the server
       state.me = { ...state.me, lat: p.coords.latitude, lng: p.coords.longitude };
       $("msg").textContent = "";
       if (map) draw();
     },
-    () => showError($("msg"), new Error("Could not get your position")),
+    fail,
     { enableHighAccuracy: true, timeout: 12000 });
-};
+}
+$("gps").onclick = () => useGps(false);
+
+/* "Open in Google Maps": turn-by-turn navigation on the phone, from where you are, to the place we are heading to. */
+function updateGmaps() {
+  const to = target(), a = $("gmaps");
+  if (!to) { a.hidden = true; return; }
+  const mode = { foot: "walking", bike: "bicycling", car: "driving" }[state.mode];
+  const from = state.me && state.me.lat != null ? `&origin=${state.me.lat},${state.me.lng}` : "";
+  a.href = `https://www.google.com/maps/dir/?api=1${from}&destination=${to.lat},${to.lng}&travelmode=${mode}`;
+  a.hidden = false;
+}
 
 /* ---------- 3D fly-through of the first route ---------- */
 function stopFly(done) {

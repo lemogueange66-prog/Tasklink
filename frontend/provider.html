@@ -176,7 +176,7 @@ $("report").onclick = async () => {
   if (!reason || !reason.trim()) return;
   try {
     await api("/api/report", "POST", { user_id: Number(id), reason });
-    alert(t("Thank you. We will review this profile."));
+    alert(t("Thank you. An administrator will review this report and you will get a notification with the decision."));
   } catch (e) { alert(t(e.message)); }
 };
 </script>

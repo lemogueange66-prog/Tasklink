@@ -15,8 +15,32 @@ def login_required(f):
     def wrapper(*args, **kwargs):
         if "uid" not in session:
             return jsonify(error="Please log in"), 401
+        u = query("SELECT blocked FROM users WHERE id=?", (session["uid"],), one=True)
+        if not u:                                   # the account no longer exists
+            session.clear()
+            return jsonify(error="Please log in"), 401
+        if u["blocked"]:                            # an administrator blocked this account
+            session.clear()
+            return jsonify(error="This account has been blocked by an administrator", blocked=True), 401
         return f(*args, **kwargs)
     return wrapper
+
+
+def admin_required(f):
+    """Only administrators (users.is_admin = 1)."""
+    @wraps(f)
+    @login_required
+    def wrapper(*args, **kwargs):
+        u = query("SELECT is_admin FROM users WHERE id=?", (session["uid"],), one=True)
+        if not u or not u["is_admin"]:
+            return jsonify(error="Not allowed"), 403
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def is_admin():
+    u = query("SELECT is_admin FROM users WHERE id=?", (session.get("uid"),), one=True)
+    return bool(u and u["is_admin"])
 
 
 @bp.post("/api/register")
@@ -61,15 +85,17 @@ def login():
     if len(recent) >= MAX_TRIES:
         attempts[key] = recent
         return fail("Too many attempts. Try again in 10 minutes.", 429)
-    user = query("SELECT id, password FROM users WHERE email=?", (key,), one=True)
+    user = query("SELECT id, password, blocked, is_admin FROM users WHERE email=?", (key,), one=True)
     if not user or not check_password_hash(user["password"], password):
         attempts[key] = recent + [now]
         return fail("Wrong email or password", 401)
     attempts.pop(key, None)
+    if user["blocked"]:                             # only said after a correct password
+        return fail("This account has been blocked by an administrator", 403)
     session.clear()
     session.permanent = True
     session["uid"] = user["id"]
-    return jsonify(ok=True)
+    return jsonify(ok=True, is_admin=bool(user["is_admin"]))
 
 
 @bp.post("/api/logout")

@@ -1,35 +1,70 @@
+/* "Do both" page: services, open missions, post a mission, my missions */
 const list = document.getElementById("list");
 const mine = document.getElementById("mine");
+const addMsg = document.getElementById("addMsg");
 const STATUS = { open: "Open", in_progress: "In progress", done: "Done" };
+const BADGE = { open: "open", in_progress: "progress", done: "done" };
+
+const serviceCard = (s) => `<div class="card">
+  <div class="card-head">
+    <a href="provider.html?id=${esc(s.user_id)}" aria-label="${esc(s.provider)}">${avatarHtml(s.provider, s.photo)}</a>
+    <div class="who"><b>${esc(s.title)}</b> ${s.kind === "training" ? `<span class="badge">Training</span>` : ""}
+      <div class="meta">${esc(s.provider)} · ${esc(t(s.category))} · ${esc(t(s.city))}${s.rating ? ` · ★ ${esc(s.rating)}` : ""}</div></div>
+  </div>
+  <div class="price">From ${esc(money(s.price))} FCFA</div>
+  <a class="link" href="provider.html?id=${esc(s.user_id)}">View profile and call</a></div>`;
+
+const missionCard = (m) => `<div class="card">
+  <div class="card-head">
+    <a href="provider.html?id=${esc(m.user_id)}" aria-label="${esc(m.author)}">${avatarHtml(m.author, m.author_photo)}</a>
+    <div class="who"><b>${esc(m.title)}</b>
+      <div class="meta"><a href="provider.html?id=${esc(m.user_id)}">${esc(m.author)}</a> · ${esc(t(m.city))}</div></div>
+  </div>
+  <div class="price">Budget: ${esc(money(m.budget))} FCFA</div>
+  <p>${esc(m.description)}</p>
+  <button class="orange" data-apply="${m.id}" ${m.applied ? "disabled" : ""}>${m.applied ? "Applied" : "Apply"}</button></div>`;
+
+const myMissionCard = (m) => `<div class="card">
+  <div class="card-head"><div class="who"><b>${esc(m.title)}</b>
+    <div class="meta">Budget: ${esc(money(m.budget))} FCFA</div></div>
+    <span class="badge ${BADGE[m.status] || ""}">${esc(t(STATUS[m.status] || m.status))}</span></div>
+  ${m.status === "open" ? (m.applicants.length
+      ? `<div class="meta">Applicants</div>` + m.applicants.map((a) => `<div class="row-actions">
+          <a class="link" href="provider.html?id=${a.id}">${esc(a.full_name)}</a>
+          <button class="btn-sm" data-accept="${m.id}" data-user="${a.id}">Accept</button></div>`).join("")
+      : `<p class="meta">No applicants yet.</p>`) : ""}
+  ${m.status !== "open" && m.worker ? `<p class="meta">Worker: <a class="link" href="provider.html?id=${m.worker_id}">${esc(m.worker)}</a></p>` : ""}
+  ${m.status === "in_progress" ? `<button class="green" data-done="${m.id}">Mark as done</button>` : ""}
+  ${m.status === "done" && !m.reviewed ? `<button data-review="${m.id}">Rate the worker</button>` : ""}</div>`;
 
 async function load() {
   const q = encodeURIComponent(document.getElementById("q").value);
-  const items = await api(`/api/missions?q=${q}`);
-  const svc = await api(`/api/services?q=${q}&category=`);
-  document.getElementById("svc").innerHTML = svc.map((s) => `<div class="card"><b>${esc(s.title)}</b> ${s.kind === "training" ? `<span class="badge">Training</span>` : ""}<br>
-    ${esc(s.provider)} · ${esc(t(s.category))} · ${esc(t(s.city))}${s.rating ? ` · ★ ${esc(s.rating)}` : ""}<br>
-    From ${esc(s.price)} FCFA<br><a class="link" href="provider.html?id=${esc(s.user_id)}">View profile and call</a></div>`).join("")
-    || "<p>No services found.</p>";
-  list.innerHTML = items.map((m) => `<div class="card"><b>${esc(m.title)}</b><br>
-    ${esc(m.author)} · ${esc(t(m.city))}<br>Budget: ${esc(m.budget)} FCFA
-    <p>${esc(m.description)}</p>
-    <button class="orange" data-apply="${m.id}" ${m.applied ? "disabled" : ""}>${m.applied ? "Applied" : "Apply"}</button></div>`).join("")
-    || "<p>No open missions yet. Post the first one below.</p>";
+  try {
+    const [items, svc] = await Promise.all([api(`/api/missions?q=${q}`), api(`/api/services?q=${q}&category=`)]);
+    document.getElementById("svc").innerHTML = svc.map(serviceCard).join("")
+      || `<div class="empty-state">No services found.</div>`;
+    list.innerHTML = items.map(missionCard).join("")
+      || `<div class="empty-state">No open missions yet. Post the first one below.</div>`;
+  } catch (err) {
+    list.innerHTML = `<p class="msg">${esc(t(err.message))}</p>`;
+  }
   loadMine();
 }
 
 async function loadMine() {
-  const items = await api("/api/my-missions");
-  mine.innerHTML = items.map((m) => `<div class="card"><b>${esc(m.title)}</b> · ${esc(t(STATUS[m.status]))}
-    ${m.status === "open" ? m.applicants.map((a) => `<p><a class="link" href="provider.html?id=${a.id}">${esc(a.full_name)}</a>
-      <button data-accept="${m.id}" data-user="${a.id}">Accept</button></p>`).join("") : ""}
-    ${m.status === "in_progress" ? `<p>${esc(m.worker)}</p><button data-done="${m.id}">Mark as done</button>` : ""}
-    ${m.status === "done" && !m.reviewed ? `<button data-review="${m.id}">Rate the worker</button>` : ""}</div>`).join("")
-    || "<p>You have not posted any mission yet.</p>";
+  try {
+    const items = await api("/api/my-missions");
+    mine.innerHTML = items.map(myMissionCard).join("")
+      || `<div class="empty-state">You have not posted any mission yet.</div>`;
+  } catch (err) {
+    mine.innerHTML = `<p class="msg">${esc(t(err.message))}</p>`;
+  }
 }
 
 document.addEventListener("click", async (e) => {
-  const d = e.target.dataset;
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const d = btn.dataset;
   try {
     if (d.apply) await api(`/api/missions/${d.apply}/apply`, "POST");
     else if (d.accept) await api(`/api/missions/${d.accept}/accept`, "POST", { user_id: Number(d.user) });
@@ -43,11 +78,15 @@ document.addEventListener("click", async (e) => {
   } catch (err) { alert(t(err.message)); }
 });
 
-document.getElementById("search").onclick = load;
+document.getElementById("searchForm").addEventListener("submit", (e) => { e.preventDefault(); load(); });
 document.getElementById("add").addEventListener("submit", async (e) => {
   e.preventDefault();
-  await api("/api/missions", "POST", formData(e.target));
-  e.target.reset();
-  load();
+  addMsg.textContent = "";
+  try {
+    await api("/api/missions", "POST", formData(e.target));
+    e.target.reset();
+    showOk(addMsg, "Mission posted!");
+    load();
+  } catch (err) { showError(addMsg, err); }
 });
 load();
